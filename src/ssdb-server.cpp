@@ -378,14 +378,14 @@ void init(int argc, char **argv){
 		}
 		*/
 	}
-	
-	check_pidfile();
+	/* i don't care about pidfile ,the ip and tcp port is one and only */
+	// check_pidfile();
 
 	std::string log_output;
 	int log_rotate_size = 0;
 	{ // logger
 		int log_level = Logger::get_level(conf->get_str("logger.level"));
-		log_rotate_size = conf->get_num("logger.rotate.size");
+		log_rotate_size = parse_byte_size(conf->get_str("logger.rotate.size"));
 		log_output = conf->get_str("logger.output");
 		if(log_output == ""){
 			log_output = "stdout";

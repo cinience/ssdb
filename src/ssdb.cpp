@@ -43,10 +43,10 @@ SSDB::~SSDB(){
 SSDB* SSDB::open(const Config &conf, const std::string &base_dir){
 	std::string main_db_path = base_dir + "/data";
 	std::string meta_db_path = base_dir + "/meta";
-	size_t cache_size = (size_t)conf.get_num("leveldb.cache_size");
-	int write_buffer_size = conf.get_num("leveldb.write_buffer_size");
-	int block_size = conf.get_num("leveldb.block_size");
-	int compaction_speed = conf.get_num("leveldb.compaction_speed");
+	size_t cache_size = parse_byte_size(conf.get_str("leveldb.cache_size"));
+	int write_buffer_size = parse_byte_size(conf.get_str("leveldb.write_buffer_size"));
+	int block_size = parse_byte_size(conf.get_str("leveldb.block_size"));
+	int compaction_speed = parse_byte_size(conf.get_str("leveldb.compaction_speed"));
 	std::string compression = conf.get_str("leveldb.compression");
 	std::string binlog_onoff = conf.get_str("replication.binlog");
 	int sync_speed = conf.get_num("replication.sync_speed");
