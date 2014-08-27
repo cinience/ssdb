@@ -69,8 +69,8 @@ class Server{
 		BackendDump *backend_dump;
 		BackendSync *backend_sync;
 		ExpirationHandler *expiration;
-
-		Server(SSDB *ssdb);
+		std::string authcode;
+		Server(SSDB *ssdb, const std::string &auth);
 		~Server();
 		void proc(ProcJob *job);
 		

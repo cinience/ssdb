@@ -196,7 +196,7 @@ void run(int argc, char **argv){
 	ready_list_t ready_list_2;
 	ready_list_t::iterator it;
 	const Fdevents::events_t *events;
-	Server serv(ssdb);
+	Server serv(ssdb, conf->get_str("server.password"));
 
 	fdes->set(serv_link->fd(), FDEVENT_IN, 0, serv_link);
 	fdes->set(serv.reader->fd(), FDEVENT_IN, 0, serv.reader);
@@ -234,6 +234,11 @@ void run(int argc, char **argv){
 					log_debug("new link from %s:%d, fd: %d, links: %d",
 						link->remote_ip, link->remote_port, link->fd(), serv.link_count);
 					fdes->set(link->fd(), FDEVENT_IN, 1, link);
+					if (serv.authcode.empty()) {
+						link->authenticated = true;
+					} else {
+						link->authenticated = false;
+					}
 				}
 			}else if(fde->data.ptr == serv.reader || fde->data.ptr == serv.writer){
 				WorkerPool<Server::ProcWorker, ProcJob> *worker = (WorkerPool<Server::ProcWorker, ProcJob> *)fde->data.ptr;

@@ -139,6 +139,7 @@ static proc_map_t proc_map;
 	DEF_PROC(expire);
 	DEF_PROC(clear_binlog);
 	DEF_PROC(ping);
+	DEF_PROC(auth);
 #undef DEF_PROC
 
 
@@ -248,13 +249,15 @@ static Command commands[] = {
 	PROC(ttl, "r"),
 	PROC(expire, "wt"),
 	PROC(ping, "r"),
+	PROC(auth, "r"),
 
 	{NULL, NULL, 0, NULL}
 };
 #undef PROC
 
-Server::Server(SSDB *ssdb){
+Server::Server(SSDB *ssdb, const std::string &auth){
 	this->ssdb = ssdb;
+	authcode = authcode;
 	link_count = 0;
 	backend_dump = new BackendDump(ssdb);
 	backend_sync = new BackendSync(ssdb);
@@ -310,32 +313,38 @@ void Server::proc(ProcJob *job){
 	const Request *req = job->link->last_recv();
 
 	Response resp;
-	proc_map_t::iterator it = proc_map.find(req->at(0));
-	if(it == proc_map.end()){
-		resp.push_back("client_error");
-		resp.push_back("Unknown Command: " + req->at(0).String());
+	if(!job->link->authenticated && strcmp(req->at(0).data(), "auth") != 0){
+		resp.push_back("auth_error");
+		job->result = -1;
 	}else{
-		Command *cmd = it->second;
-		job->cmd = cmd;
-		if(cmd->flags & Command::FLAG_THREAD){
-			if(cmd->flags & Command::FLAG_WRITE){
-				job->result = PROC_THREAD;
-				writer->push(*job);
-				return; /////
-			}else if(cmd->flags & Command::FLAG_READ){
-				job->result = PROC_THREAD;
-				reader->push(*job);
-				return; /////
-			}else{
-				log_error("bad command config: %s", cmd->name);
+		proc_map_t::iterator it = proc_map.find(req->at(0));
+		if(it == proc_map.end()){
+			resp.push_back("client_error");
+			resp.push_back("Unknown Command: " + req->at(0).String());
+		}else{
+			Command *cmd = it->second;
+			job->cmd = cmd;
+			if(cmd->flags & Command::FLAG_THREAD){
+				if(cmd->flags & Command::FLAG_WRITE){
+					job->result = PROC_THREAD;
+					writer->push(*job);
+					return; /////
+				}else if(cmd->flags & Command::FLAG_READ){
+					job->result = PROC_THREAD;
+					reader->push(*job);
+					return; /////
+				}else{
+					log_error("bad command config: %s", cmd->name);
+				}
 			}
-		}
 
-		proc_t p = cmd->proc;
-		job->time_wait = 1000 *(millitime() - job->stime);
-		job->result = (*p)(this, job->link, *req, &resp);
-		job->time_proc = 1000 *(millitime() - job->stime);
+			proc_t p = cmd->proc;
+			job->time_wait = 1000 *(millitime() - job->stime);
+			job->result = (*p)(this, job->link, *req, &resp);
+			job->time_proc = 1000 *(millitime() - job->stime);
+		}
 	}
+
 	if(job->result == PROC_BACKEND){
 		return;
 	}
@@ -525,6 +534,10 @@ static int proc_key_range(Server *serv, Link *link, const Request &req, Response
 }
 
 static int proc_ttl(Server *serv, Link *link, const Request &req, Response *resp){
+	if (!link->authenticated) {
+		resp->push_back("auth_error");
+		return 0;
+	}
 	if(req.size() != 2){
 		resp->push_back("client_error");
 	}else{
@@ -561,6 +574,24 @@ static int proc_ping(Server *serv, Link *link, const Request &req, Response *res
 	return 0;
 }
 
+static int proc_auth(Server *serv, Link *link, const Request &req, Response *resp){
+	int ret = 0;
+	if(req.size() != 2){
+		resp->push_back("client_error");
+		ret = -1;
+	}else{
+		if (req[1] == serv->authcode) {
+			resp->push_back("ok");
+			link->authenticated = true;
+			ret = 0;
+		} else {
+			resp->push_back("auth_error");
+			link->authenticated = false;
+			ret = -1;
+		}
+	}
+	return ret;
+}
 #include "proc_kv.cpp"
 #include "proc_hash.cpp"
 #include "proc_zset.cpp"

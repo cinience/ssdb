@@ -206,64 +206,64 @@ std::string str_slice(const std::string &str, int start, int end){
 
 static inline 
 size_t parse_byte_size(const char *src) {
-    	/* Parse size in bytes depending on the suffix.   Valid suffixes are KB, MB and GB */
-        char *astring = (char*) src;
+	/* Parse size in bytes depending on the suffix.   Valid suffixes are KB, MB and GB */
+	char *astring = (char*) src;
 	char *p;
-    	char *q;
-    	size_t sz;
-    	long res;
-    	int c, m;
+	char *q;
+	size_t sz;
+	long res;
+	int c, m;
 
-    	assert(astring);
+	assert(astring);
 
-    	/* clear space */
-    	for (p = q = astring; *p != '\0'; p++) {
-        	if (isspace(*p)) {
-            		continue;
-        	} else {
-           		 *q = *p;
-           	 	q++;
-        	}
-   	 }
-    	*q = '\0';
+	/* clear space */
+	for (p = q = astring; *p != '\0'; p++) {
+		if (isspace(*p)) {
+			continue;
+		} else {
+		*q = *p;
+		q++;
+		}
+	}
+	*q = '\0';
 
-    	sz = strlen(astring);
-    	res = strtol(astring, (char **) NULL, 10);
+	sz = strlen(astring);
+	res = strtol(astring, (char **) NULL, 10);
 
-    	if (res <= 0)
-        	return 0;
+	if (res <= 0)
+		return 0;
 
-    	if (astring[sz - 1] == 'B' || astring[sz - 1] == 'b') {
-        	c = astring[sz - 2];
-        	m = 1024;
-    	} else {
-        	c = astring[sz - 1];
-        	m = 1000;
-   	}
+	if (astring[sz - 1] == 'B' || astring[sz - 1] == 'b') {
+		c = astring[sz - 2];
+		m = 1024;
+	} else {
+		c = astring[sz - 1];
+		m = 1000;
+	}
 
-    	switch (c) {
-    	case 'K':
-    	case 'k':
-        	res *= m;
-        	break;
-    	case 'M':
-    	case 'm':
-        	res *= m * m;
-        	break;
-    	case 'G':
-    	case 'g':
-        	res *= m * m * m;
-        	break;
-    	default:
-        	if (!isdigit(c)) {
-            		printf(
-                    		"Wrong suffix parsing " "size in bytes for string [%s], ignoring suffix",
-                    		astring);
-        	}
-        	break;
-    	}
+	switch (c) {
+	case 'K':
+	case 'k':
+		res *= m;
+		break;
+	case 'M':
+	case 'm':
+		res *= m * m;
+		break;
+	case 'G':
+	case 'g':
+		res *= m * m * m;
+		break;
+	default:
+		if (!isdigit(c)) {
+				printf(
+						"Wrong suffix parsing " "size in bytes for string [%s], ignoring suffix",
+						astring);
+		}
+		break;
+	}
 
-    	return (res);
+	return (res);
 }
 
 static inline

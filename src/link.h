@@ -25,7 +25,7 @@ class Link{
 
 		static int min_recv_buf;
 		static int min_send_buf;
-
+		bool authenticated;
 		Buffer *input;
 		Buffer *output;
 		
