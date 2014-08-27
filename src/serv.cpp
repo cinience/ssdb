@@ -257,11 +257,10 @@ static Command commands[] = {
 
 Server::Server(SSDB *ssdb, const std::string &auth){
 	this->ssdb = ssdb;
-	authcode = authcode;
+	authcode = auth;
 	link_count = 0;
 	backend_dump = new BackendDump(ssdb);
 	backend_sync = new BackendSync(ssdb);
-
 	for(Command *cmd=commands; cmd->name; cmd++){
 		for(const char *p=cmd->sflags; *p!='\0'; p++){
 			switch(*p){
@@ -313,9 +312,8 @@ void Server::proc(ProcJob *job){
 	const Request *req = job->link->last_recv();
 
 	Response resp;
-	if(!job->link->authenticated && strcmp(req->at(0).data(), "auth") != 0){
+	if(!job->link->authenticated && strncmp(req->at(0).data(), "auth\n", 5) != 0){
 		resp.push_back("auth_error");
-		job->result = -1;
 	}else{
 		proc_map_t::iterator it = proc_map.find(req->at(0));
 		if(it == proc_map.end()){
@@ -534,10 +532,6 @@ static int proc_key_range(Server *serv, Link *link, const Request &req, Response
 }
 
 static int proc_ttl(Server *serv, Link *link, const Request &req, Response *resp){
-	if (!link->authenticated) {
-		resp->push_back("auth_error");
-		return 0;
-	}
 	if(req.size() != 2){
 		resp->push_back("client_error");
 	}else{
@@ -578,16 +572,13 @@ static int proc_auth(Server *serv, Link *link, const Request &req, Response *res
 	int ret = 0;
 	if(req.size() != 2){
 		resp->push_back("client_error");
-		ret = -1;
 	}else{
 		if (req[1] == serv->authcode) {
 			resp->push_back("ok");
 			link->authenticated = true;
-			ret = 0;
 		} else {
 			resp->push_back("auth_error");
 			link->authenticated = false;
-			ret = -1;
 		}
 	}
 	return ret;
