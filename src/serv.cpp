@@ -312,7 +312,7 @@ void Server::proc(ProcJob *job){
 	const Request *req = job->link->last_recv();
 
 	Response resp;
-	if(!job->link->authenticated && strncmp(req->at(0).data(), "auth\n", 5) != 0){
+	if(!job->link->authenticated && strncmp(req->at(0).data(), "auth", 4) != 0){
 		resp.push_back("auth_error");
 	}else{
 		proc_map_t::iterator it = proc_map.find(req->at(0));

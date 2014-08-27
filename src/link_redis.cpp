@@ -12,6 +12,7 @@ enum REPLY{
 enum STRATEGY{
 	STRATEGY_AUTO,
 	STRATEGY_PING,
+        STRATEGY_AUTH,
 	STRATEGY_MGET,
 	STRATEGY_HMGET,
 	STRATEGY_HGETALL,
@@ -42,7 +43,7 @@ struct RedisCommand_raw
 
 static RedisCommand_raw cmds_raw[] = {
 	{STRATEGY_PING, "ping",		"ping",			REPLY_STATUS},
-
+	{STRATEGY_AUTH, "auth",         "auth",                 REPLY_STATUS},
 	{STRATEGY_AUTO, "get",		"get",			REPLY_BULK},
 	{STRATEGY_AUTO, "getset",	"getset",		REPLY_BULK},
 	{STRATEGY_AUTO, "set",		"set",			REPLY_STATUS},
@@ -137,8 +138,14 @@ int RedisLink::convert_req(){
 		}
 		return 0;
 	}
-	this->req_desc = &(it->second);
-
+	this->req_desc = &(it->second);	
+	if(this->req_desc->strategy == STRATEGY_AUTH){
+		recv_string.push_back(req_desc->ssdb_cmd);
+		if(recv_bytes.size() == 2){
+			recv_string.push_back(recv_bytes[1].String());
+		}	
+		return 0;
+	}
 	if(this->req_desc->strategy == STRATEGY_HKEYS
 			||  this->req_desc->strategy == STRATEGY_HVALS
 	){
