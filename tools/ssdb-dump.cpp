@@ -16,6 +16,14 @@
 #include "util/file.h"
 #include "util/strings.h"
 
+struct Config {
+	std::string ip;
+	int port;
+	bool hasauth;
+	std::string auth;
+	std::string output_folder;
+};
+
 template<class T>
 static std::string serialize_req(T &req){
 	std::string ret;
@@ -47,61 +55,100 @@ void welcome(){
 }
 
 void usage(int argc, char **argv){
-	printf("Usage:\n");
-	printf("    %s ip port output_folder\n", argv[0]);
-	printf("\n");
-	printf("Options:\n");
-	printf("    ip - ssdb server ip address\n");
-	printf("    port - ssdb server port number\n");
-	printf("    output_folder - local backup folder that will be created\n");
+	printf("Usage: %s [OPTIONS] [cmd [arg [arg ...]]]"
+			"  -h <hostname>      Server hostname (default: 127.0.0.1).\n"
+			"  -p <port>          Server port (default: 6379).\n"
+			"  -a <password>      Password to use when connecting to the server.\n"
+			"  -o <output_folder> local backup folder that will be created.\n"
+			"",
+			argv[0]);
+}
+
+int parse_options(Config &config, int argc, char **argv){
+	int i;
+	for (i = 1; i < argc; i++) {
+		bool lastarg = i==argc-1;
+		if (!strcmp(argv[i],"-h") && !lastarg) {
+			config.ip = argv[++i];
+		} else if (!strcmp(argv[i], "-h") && lastarg) {
+			usage(argc, argv);
+		} else if (!strcmp(argv[i], "-p") && !lastarg) {
+			config.port = atoi(argv[++i]);
+		} else if (!strcmp(argv[i], "-a") && !lastarg) {
+			config.hasauth = true;
+			config.auth = argv[++i];
+		} else if (!strcmp(argv[i], "-o") && !lastarg) {
+			config.output_folder = argv[++i];
+		} else {
+			if (argv[i][0] == '-') {
+				fprintf(stderr,
+					"Unrecognized option or bad number of args for: '%s'\n",
+					argv[i]);
+					exit(1);
+			} else {
+				/* Likely the command name, stop here. */
+				break;
+			}
+		}
+	}
+	return i;
 }
 
 int main(int argc, char **argv){
 	welcome();
-
 	set_log_level(Logger::LEVEL_MIN);
 
-	if(argc <= 3){
-		usage(argc, argv);
-		return 0;
-	}
-	char *ip = argv[1];
-	int port = atoi(argv[2]);
-	char *output_folder = argv[3];
+	Config config;
+	config.ip = "127.0.0.1";
+	config.port = 8888;
+	config.hasauth = false;
+    
+	int firstarg;
+	firstarg = parse_options(config, argc, argv);
+	argc -= firstarg;
+	argv += firstarg;
 
-	if(file_exists(output_folder)){
-		printf("output_folder[%s] exists!\n", output_folder);
-		return 0;
+	if(file_exists(config.output_folder.c_str())){
+		printf("output_folder[%s] exists!\n", config.output_folder.c_str());
+		exit(1);
 	}
-	if(mkdir(output_folder, 0777) == -1){
+	if(mkdir(config.output_folder.c_str(), 0777) == -1){
 		perror("error create backup directory!\n");
-		return 0;
+		exit(1);
 	}
 
 	std::string data_dir = "";
-	data_dir.append(output_folder);
+	data_dir.append(config.output_folder);
 	data_dir.append("/data");
 	
 	{
 		std::string meta_dir = "";
-		meta_dir.append(output_folder);
+		meta_dir.append(config.output_folder);
 		meta_dir.append("/meta");
 
 		int ret;
 		ret = mkdir(meta_dir.c_str(), 0755);
 		if(ret == -1){
 			fprintf(stderr, "error creating meta dir\n");
-			exit(0);
+			exit(1);
 		}
 	}
 
 	// connect to server
-	Link *link = Link::connect(ip, port);
+	Link *link = Link::connect(config.ip.c_str(), config.port);
 	if(link == NULL){
 		fprintf(stderr, "error connecting to server!\n");
-		return 0;
+		exit(1);
 	}
-
+	if (config.hasauth){
+		link->send("auth", config.auth.c_str());
+		link->flush();
+		const std::vector<Bytes> *packet = link->response();
+		if (packet->size() != 1 || packet->begin()->String() != "ok") {
+			fprintf(stderr, "auth error!\n");
+			exit(1);
+		}
+	}
 	link->send("dump", "A", "", "-1");
 	link->flush();
 
@@ -114,8 +161,8 @@ int main(int argc, char **argv){
 
 	status = leveldb::DB::Open(options, data_dir.c_str(), &db);
 	if(!status.ok()){
-		printf("open leveldb: %s error!\n", output_folder);
-		return 0;
+		printf("open leveldb: %s error!\n", config.output_folder.c_str());
+		exit(1);
 	}
 
 	int dump_count = 0;
@@ -124,13 +171,13 @@ int main(int argc, char **argv){
 		if(req == NULL){
 			printf("recv error\n");
 			printf("ERROR: failed to dump data!\n");
-			exit(0);
+			exit(1);
 		}else if(req->empty()){
 			int len = link->read();
 			if(len <= 0){
 				printf("read error: %s\n", strerror(errno));
 				printf("ERROR: failed to dump data!\n");
-				exit(0);
+				exit(1);
 			}
 		}else{
 			Bytes cmd = req->at(0);
@@ -149,7 +196,7 @@ int main(int argc, char **argv){
 				if(req->size() != 3){
 					printf("invalid set params!\n");
 					printf("ERROR: failed to dump data!\n");
-					exit(0);
+					exit(1);
 				}
 				Bytes key = req->at(1);
 				Bytes val = req->at(2);
@@ -163,7 +210,7 @@ int main(int argc, char **argv){
 				if(!status.ok()){
 					printf("put leveldb error!\n");
 					printf("ERROR: failed to dump data!\n");
-					exit(0);
+					exit(1);
 				}
 
 				dump_count ++;
@@ -173,7 +220,7 @@ int main(int argc, char **argv){
 			}else{
 				printf("error: unknown command %s\n", std::string(cmd.data(), cmd.size()).c_str());
 				printf("ERROR: failed to dump data!\n");
-				exit(0);
+				exit(1);
 			}
 		}
 	}
@@ -215,7 +262,7 @@ int main(int argc, char **argv){
 		}
 	}
 
-	printf("backup has been made to folder: %s\n", output_folder);
+	printf("backup has been made to folder: %s\n", config.output_folder.c_str());
 	
 	delete link;
 	delete db;
